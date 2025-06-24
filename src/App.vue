@@ -1,30 +1,49 @@
 <script setup>
-import HelloWorld from './components/HelloWorld.vue'
+import Hive from './classes/Hive';
+import Bee from './classes/Bee';
+
+// Создаём улей
+const hive = new Hive("Мой улей", 5);
+
+// Создаём пчёл
+const bee1 = new Bee("Бетти");
+const bee2 = new Bee("Алиса");
+
+// Добавляем пчёл в улей
+hive.addBee(bee1);
+hive.addBee(bee2);
+
+
+// Получаем статистику
+const stats = hive.getStats();
 </script>
 
 <template>
-  <div>
-    <a href="https://vite.dev" target="_blank">
-      <img src="/vite.svg" class="logo" alt="Vite logo" />
-    </a>
-    <a href="https://vuejs.org/" target="_blank">
-      <img src="./assets/vue.svg" class="logo vue" alt="Vue logo" />
-    </a>
+  <div class="app">
+    <h1>🐝 {{ hive.name }}</h1>
+    <div class="hive-stats">
+      <p>Пчёл в улье: {{ stats.beesCount }} / {{ hive.maxBees }}</p>
+      <p>Мёд: {{ stats.honeyStock }} г</p>
+      <p>Пыльца: {{ stats.pollenStock }} г</p>
+      <p>Здоровье улья: {{ stats.health }}%</p>
+      <p>Матка: {{ stats.queenStatus }}</p>
+    </div>
   </div>
-  <HelloWorld msg="Vite + Vue" />
 </template>
 
 <style scoped>
-.logo {
-  height: 6em;
-  padding: 1.5em;
-  will-change: filter;
-  transition: filter 300ms;
+.app {
+  font-family: Arial, sans-serif;
+  padding: 2rem;
+  background-color: #fffbe6;
+  color: #333;
 }
-.logo:hover {
-  filter: drop-shadow(0 0 2em #646cffaa);
-}
-.logo.vue:hover {
-  filter: drop-shadow(0 0 2em #42b883aa);
+
+.hive-stats {
+  background: #f9f9f9;
+  border: 1px solid #ddd;
+  padding: 1rem;
+  border-radius: 8px;
+  max-width: 400px;
 }
 </style>
