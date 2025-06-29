@@ -742,5 +742,63 @@ input, select {
 input:hover, select:hover {
   transform: translateY(-2px);
 }
+/* Адаптивность */
+@media (max-width: 1200px) {
+  .app-container {
+    flex-direction: column;
+    align-items: center;
+  }
+  
+  .parameters-panel {
+    width: 800px;
+    max-width: 100%;
+    margin-top: 35px;
+  }
+}
 
+@media (max-width: 850px) {
+  .app-container {
+    padding: 15px;
+  }
+  
+  .game-area, .parameters-panel {
+    width: 100%;
+    max-width: 100%;
+  }
+  
+  .game-area {
+    height: auto;
+    aspect-ratio: 4/3;
+  }
+  
+  canvas {
+    width: 100%;
+    height: auto;
+  }
+  
+  .hive-info {
+    top: 15px;
+    left: 15px;
+    padding: 15px;
+    min-width: 180px;
+  }
+  
+  .parameters-panel {
+    padding: 25px;
+  }
+}
+
+@media (max-width: 480px) {
+  .hive-info {
+    position: relative;
+    top: 0;
+    left: 0;
+    width: 100%;
+    margin-bottom: 20px;
+  }
+  
+  .parameter {
+    padding: 15px;
+  }
+}
 </style>
