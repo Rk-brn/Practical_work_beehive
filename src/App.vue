@@ -1,5 +1,5 @@
 <template>
-  <div class="app-container">
+ <div class="app-container">
     <div class="game-area">
       <canvas ref="gameCanvas" width="800" height="600"></canvas>
       
@@ -10,9 +10,17 @@
         <p>Пчёлы: {{ hive ? hive.bees.length : 0 }}/{{ hive ? hive.capacity : 0 }}</p>
         <p>Здоровье: {{ hive ? Math.round(hive.health) : 0 }}%</p>
         <p v-if="isHiveFull" class="hive-full-warning">Улей переполнен! Пчёлы отдыхают</p>
+        
+        <!-- Кнопки управления пчелами -->
+        <div class="bee-controls">
+          <button @click="addBeeManually" :disabled="!canAddBee">Добавить пчелу (-25 мёда)</button>
+          <button @click="toggleDeleteMode" :class="{ 'delete-active': deleteMode }">
+            {{ deleteMode ? 'Отменить удаление' : 'Удалить пчелу' }}
+          </button>
+        </div>
       </div>
     </div>
-    
+
     <!-- Панель параметров -->
     <div class="parameters-panel">
       <h2>Параметры игры</h2>
@@ -799,6 +807,60 @@ input:hover, select:hover {
   
   .parameter {
     padding: 15px;
+  }
+}
+/* Стили для кнопок управления пчелами */
+.bee-controls {
+  margin-top: 15px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.bee-controls button {
+  padding: 10px 15px;
+  background: #3498db;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+}
+
+.bee-controls button:hover {
+  background: #2980b9;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+}
+
+.bee-controls button:disabled {
+  background: #95a5a6;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+.bee-controls button.delete-active {
+  background: #e74c3c;
+}
+
+.bee-controls button.delete-active:hover {
+  background: #c0392b;
+}
+
+/* Адаптивность для кнопок */
+@media (max-width: 480px) {
+  .bee-controls {
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+  
+  .bee-controls button {
+    flex: 1 1 45%;
+    font-size: 0.8rem;
+    padding: 8px 10px;
   }
 }
 </style>
