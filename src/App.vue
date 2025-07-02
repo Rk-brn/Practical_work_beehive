@@ -13,10 +13,6 @@
         <p v-if="isHiveFull" class="hive-full-warning">Улей переполнен!</p>
         
         <div class="bee-controls">
-          <button @click="addBeeManually" :disabled="!canAddBee">+ Пчела (-25 мёда)</button>
-          <button @click="toggleDeleteMode" :class="{ 'delete-active': deleteMode }">
-            {{ deleteMode ? 'Отмена' : 'Удалить пчелу' }}
-          </button>
           <button @click="spawnBear" :disabled="bear">Вызвать медведя</button>
         </div>
       </div>
@@ -263,6 +259,8 @@ export default {
         speed: 0.1,
         collectionSpeed: 0.02,
         capacity: 10,
+        lifespan: 10000, // Время жизни пчелы в миллисекундах (например, 60 секунд)
+        lifespanVariance: 5000 // Дисперсия ±5 секунд
       },
       
       hiveParameters: {
@@ -311,6 +309,13 @@ export default {
     }
   },
   methods: {
+    removeBee(bee, index) {
+    this.bees.splice(index, 1);
+    const hiveIndex = this.hive.bees.findIndex(b => b.id === bee.id);
+    if (hiveIndex !== -1) {
+      this.hive.bees.splice(hiveIndex, 1);
+    }
+  },
     initGame() {
       // Случайное расположение улья
       const hiveX = 100 + Math.random() * (this.canvas.width - 200);
@@ -352,7 +357,8 @@ export default {
       bee.speed = this.beeParameters.speed;
       bee.collectionSpeed = this.beeParameters.collectionSpeed;
       bee.capacity = this.beeParameters.capacity;
-      
+      bee.birthTime = Date.now(); // Запоминаем момент рождения
+      bee.lifespan = this.beeParameters.lifespan + Math.random() * this.beeParameters.lifespanVariance * 2 - this.beeParameters.lifespanVariance;
       bee.position = { 
         x: this.hive.position.x + (Math.random() * 20 - 10), 
         y: this.hive.position.y + (Math.random() * 20 - 10)
@@ -428,6 +434,16 @@ spawnBear() {
 
     update(deltaTime) {
       if (this.gameOver) return;
+
+
+   const now = Date.now();
+this.bees.forEach((bee, index) => {
+  if (now - bee.birthTime > bee.lifespan) {
+    this.removeBee(bee, index);
+  }
+});
+
+
 
       // Обновляем медведя
 if (this.bear) {
@@ -798,59 +814,6 @@ this.ctx.stroke();
         this.ctx.strokeStyle = '#000';
         this.ctx.lineWidth = 1;
         this.ctx.strokeRect(healthX, healthY, healthWidth, healthHeight);
-      }
-    },
-    
-    addBeeManually() {
-      if (this.canAddBee) {
-        this.addBee();
-        this.hive.honey -= 25;
-      }
-    },
-    
-    toggleDeleteMode() {
-      this.deleteMode = !this.deleteMode;
-      if (this.deleteMode) {
-        this.canvas.style.cursor = 'pointer';
-        this.canvas.addEventListener('click', this.deleteBeeAtClick);
-      } else {
-        this.canvas.style.cursor = 'default';
-        this.canvas.removeEventListener('click', this.deleteBeeAtClick);
-      }
-    },
-    
-    deleteBeeAtClick(event) {
-      if (!this.deleteMode) return;
-      
-      const rect = this.canvas.getBoundingClientRect();
-      const x = event.clientX - rect.left;
-      const y = event.clientY - rect.top;
-      
-      let closestBee = null;
-      let minDistance = Infinity;
-      
-      this.bees.forEach(bee => {
-        const dx = bee.position.x - x;
-        const dy = bee.position.y - y;
-        const distance = Math.sqrt(dx * dx + dy * dy);
-        
-        if (distance < 15 && distance < minDistance) {
-          minDistance = distance;
-          closestBee = bee;
-        }
-      });
-      
-      
-      if (closestBee) {
-        const beeIndex = this.bees.indexOf(closestBee);
-        if (beeIndex !== -1) {
-          this.bees.splice(beeIndex, 1);
-          
-          const hiveBeeIndex = this.hive.bees.findIndex(b => b.id === closestBee.id);
-          if (hiveBeeIndex !== -1) {
-            this.hive.bees.splice(hiveBeeIndex, 1);
-          }
-        }
       }
     },
     

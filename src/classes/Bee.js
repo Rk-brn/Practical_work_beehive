@@ -228,4 +228,13 @@ export default class Bee {
       direction: this.direction
     };
   }
+
+  removeBee(bee, index) {
+  this.bees.splice(index, 1);
+  const hiveIndex = this.hive.bees.findIndex(b => b.id === bee.id);
+  if (hiveIndex !== -1) {
+    this.hive.bees.splice(hiveIndex, 1);
+  }
+}
+
 }
