@@ -11,10 +11,22 @@ export default class Bee {
     this.collectionSpeed = 0.2; // Скорость сбора пыльцы (ед./мс)
     this.inHive = true;         // Флаг нахождения в улье
     this.direction = { x: 0, y: 0 }; // Направление движения
+    this.attackPower = 1;       // Сила атаки пчелы
+    this.health = 10;           // Здоровье пчелы
+    this.attackMode = false;    // Режим атаки
   }
 
   // Обновление состояния пчелы
-  update(deltaTime, flowers, hive) {
+  update(deltaTime, flowers, hive, bears) {
+
+    if (!this.attackMode && this.inHive) {
+      const nearbyBear = this.checkForBears(hive, bears);
+      if (nearbyBear) {
+        this.attackBear(nearbyBear);
+        return;
+      }
+    }
+
     if (!this.target && this.status !== 'in-hive') {
       this.findTarget(flowers, hive);
     }
@@ -42,9 +54,65 @@ export default class Bee {
           this.inHive = true;
         }
         break;
+        case 'attacking':
+        this.attack(deltaTime);
+        break;
     }
   }
 
+
+  // Проверка на наличие медведей рядом с ульем
+  checkForBears(hive, bears) {
+    const hivePos = hive.position;
+    const attackRadius = 150; // Радиус обнаружения медведей
+    
+    for (const bear of bears) {
+      const dx = bear.position.x - hivePos.x;
+      const dy = bear.position.y - hivePos.y;
+      const distance = Math.sqrt(dx * dx + dy * dy);
+      
+      if (distance < attackRadius) {
+        return bear;
+      }
+    }
+    return null;
+  }
+
+  // Начать атаку на медведя
+  attackBear(bear) {
+    this.target = bear;
+    this.status = 'attacking';
+    this.inHive = false;
+    this.attackMode = true;
+    this.calculateDirection();
+  }
+
+  // Атаковать медведя
+  attack(deltaTime) {
+    if (!this.target || this.target.health <= 0) {
+      this.returnToHive(hive);
+      this.attackMode = false;
+      return;
+    }
+
+    // Движение к медведю
+    this.move(deltaTime);
+
+    // Если достигли медведя - наносим урон
+    if (this.reachedTarget()) {
+      this.target.takeDamage(this.attackPower * deltaTime);
+      
+      // Пчела тоже получает урон (например, 50% шанс получить 1 урона)
+      if (Math.random() > 0.5) {
+        this.health -= 1;
+        if (this.health <= 0) {
+          this.die();
+          return;
+        }
+      }
+    }
+  }
+  
   // Поиск цели
   findTarget(flowers, hive) {
     // Если в улье - ищем цветок

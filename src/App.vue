@@ -1,26 +1,33 @@
+
 <template>
- <div class="app-container">
+  <div class="app-container">
     <div class="game-area">
       <canvas ref="gameCanvas" width="800" height="600"></canvas>
       
-      <!-- Панель информации об улье -->
-      <div class="hive-info">
+      <!-- Панель информации об улье - теперь справа -->
+      <div class="hive-info right">
         <h2>Улей</h2>
         <p>Мёд: {{ hive ? Math.round(hive.honey) : 0 }}/{{ hive ? hive.maxHoney : 0 }}</p>
         <p>Пчёлы: {{ hive ? hive.bees.length : 0 }}/{{ hive ? hive.capacity : 0 }}</p>
         <p>Здоровье: {{ hive ? Math.round(hive.health) : 0 }}%</p>
-        <p v-if="isHiveFull" class="hive-full-warning">Улей переполнен! Пчёлы отдыхают</p>
+        <p v-if="isHiveFull" class="hive-full-warning">Улей переполнен!</p>
         
-        <!-- Кнопки управления пчелами -->
         <div class="bee-controls">
-          <button @click="addBeeManually" :disabled="!canAddBee">Добавить пчелу (-25 мёда)</button>
+          <button @click="addBeeManually" :disabled="!canAddBee">+ Пчела (-25 мёда)</button>
           <button @click="toggleDeleteMode" :class="{ 'delete-active': deleteMode }">
-            {{ deleteMode ? 'Отменить удаление' : 'Удалить пчелу' }}
+            {{ deleteMode ? 'Отмена' : 'Удалить пчелу' }}
           </button>
+          <button @click="spawnBear" :disabled="bear">Вызвать медведя</button>
         </div>
       </div>
+      
+      <div v-if="gameOver" class="game-over-message">
+        <h2>Симуляция окончена!</h2>
+        <p>Медведь разрушил улей</p>
+        <button @click="restartGame">Начать заново</button>
+      </div>
     </div>
-
+    
     <!-- Панель параметров -->
     <div class="parameters-panel">
       <h2>Параметры игры</h2>
@@ -90,6 +97,144 @@ import Flower from './classes/Flower';
 import Hive from './classes/Hive';
 import Bee from './classes/Bee';
 
+class Bear {
+  constructor(canvasWidth, canvasHeight) {
+    this.id = `bear-${Date.now()}`;
+    this.position = { 
+      x: Math.random() * canvasWidth,
+      y: Math.random() * canvasHeight
+    };
+    this.target = null;
+    this.health = 100;
+    this.maxHealth = 100;
+    this.speed = 0.1;
+    this.detectionRadius = 100; // Радиус обнаружения улья
+    this.wanderingRadius = 300; // Как далеко может уйти от точки старта
+    this.attackPower = 2;
+    this.attackCooldown = 0;
+    this.state = 'idle'; // wandering, chasing, attacking, leaving
+    this.homePosition = { ...this.position }; // Точка, вокруг которой бродит
+    this.canvasWidth = canvasWidth;
+    this.canvasHeight = canvasHeight;
+    this.nextWanderTarget = this.getRandomWanderTarget();
+  }
+
+  getRandomWanderTarget() {
+    return {
+      x: this.homePosition.x + (Math.random() * this.wanderingRadius * 2 - this.wanderingRadius),
+      y: this.homePosition.y + (Math.random() * this.wanderingRadius * 2 - this.wanderingRadius)
+    };
+  }
+
+  update(deltaTime, hive) {
+  // Ограничиваем позицию медведя в пределах карты
+  this.position.x = Math.max(20, Math.min(this.canvasWidth - 20, this.position.x));
+  this.position.y = Math.max(20, Math.min(this.canvasHeight - 20, this.position.y));
+
+  if (this.state === 'idle') {
+  // Медведь всегда хочет мёда — сразу начинаем поиск улья
+  const dx = hive.position.x - this.position.x;
+  const dy = hive.position.y - this.position.y;
+  const distance = Math.sqrt(dx * dx + dy * dy);
+
+  if (distance <= this.detectionRadius) {
+    this.target = hive;
+    this.state = 'moving';
+  } else {
+    this.state = 'wandering';
+    this.wanderTarget = this.getRandomWanderTarget(); // Используем getRandomWanderTarget()
+  }
+}
+
+if (this.state === 'wandering') {
+  // Генерируем случайную точку, если её нет
+  if (!this.wanderTarget) {
+    this.wanderTarget = {
+      x: Math.random() * this.canvasWidth,
+      y: Math.random() * this.canvasHeight
+    };
+  }
+
+  // Вычисляем расстояние до цели
+  const dx = this.wanderTarget.x - this.position.x;
+  const dy = this.wanderTarget.y - this.position.y;
+  const distance = Math.sqrt(dx * dx + dy * dy);
+
+  // Двигаемся к цели
+  if (distance > 0) {
+    this.position.x += (dx / distance) * this.speed * deltaTime;
+    this.position.y += (dy / distance) * this.speed * deltaTime;
+  }
+
+  // Если достигли точки — генерируем новую
+  if (distance < 20) {
+    this.wanderTarget = {
+      x: Math.random() * this.canvasWidth,
+      y: Math.random() * this.canvasHeight
+    };
+  }
+
+  // Проверяем, видим ли улей
+  const hiveDistance = Math.hypot(hive.position.x - this.position.x, hive.position.y - this.position.y);
+  if (hiveDistance <= this.detectionRadius) {
+    this.target = hive;
+    this.state = 'moving';
+    this.wanderTarget = null; // Очищаем цель брождения
+  }
+}
+
+
+  if (this.state === 'moving' && this.target) {
+    const dx = this.target.position.x - this.position.x;
+    const dy = this.target.position.y - this.position.y;
+    const distance = Math.sqrt(dx * dx + dy * dy);
+
+    if (distance > 0) {
+      this.position.x += (dx / distance) * this.speed * deltaTime;
+      this.position.y += (dy / distance) * this.speed * deltaTime;
+    }
+
+    if (distance < 50) {
+      this.state = 'attacking';
+    }
+  }
+
+  if (this.state === 'attacking') {
+    this.attackCooldown += deltaTime;
+    if (this.attackCooldown > 1000) {
+      hive.health -= this.attackPower;
+      this.attackCooldown = 0;
+      if (hive.health <= 0) {
+        this.state = 'leaving';
+        return 'hive-destroyed';
+      }
+    }
+  }
+
+  if (this.state === 'leaving') {
+    this.position.x += this.speed * deltaTime;
+    if (this.position.x > this.canvasWidth + 100) {
+      this.state = 'gone';
+    }
+  }
+
+  return null;
+}
+ isAtTarget(target) {
+  const dx = target.x - this.position.x;
+  const dy = target.y - this.position.y;
+  return Math.sqrt(dx * dx + dy * dy) < 20; // Расстояние считается как "достигнуто"
+}
+
+  takeDamage(amount) {
+    this.health -= amount;
+    if (this.health <= 0) {
+      this.state = 'dead';
+    }
+    
+  }
+}
+
 const SEASONS = {
   spring: { spawnChance: 0.3, maxFlowers: 30, bloomDuration: 15000 },
   summer: { spawnChance: 0.5, maxFlowers: 50, bloomDuration: 10000 },
@@ -110,6 +255,9 @@ export default {
       gameLoopId: null,
       flowerSearchCooldown: 0,
       isHiveFull: false,
+      bear: null,
+      gameOver: false,
+      deleteMode: false,
       
       beeParameters: {
         speed: 0.1,
@@ -138,6 +286,9 @@ export default {
     },
     flowerSpawnChance() {
       return this.flowerSpawnRate / 100;
+    },
+    canAddBee() {
+      return this.hive && this.hive.honey >= 25 && this.hive.bees.length < this.hive.capacity;
     }
   },
   watch: {
@@ -151,7 +302,6 @@ export default {
       this.ctx = this.canvas.getContext('2d');
       this.initGame();
       this.startGameLoop();
-      this.canvas.addEventListener('click', this.addFlowerAtClick);
       this.updateSeasonConfig();
     });
   },
@@ -159,13 +309,16 @@ export default {
     if (this.gameLoopId) {
       cancelAnimationFrame(this.gameLoopId);
     }
-    this.canvas.removeEventListener('click', this.addFlowerAtClick);
   },
   methods: {
     initGame() {
+      // Случайное расположение улья
+      const hiveX = 100 + Math.random() * (this.canvas.width - 200);
+      const hiveY = 100 + Math.random() * (this.canvas.height - 200);
+      
       this.hive = new Hive({ 
-        x: this.canvas.width / 2, 
-        y: this.canvas.height / 2,
+        x: hiveX, 
+        y: hiveY,
         maxHoney: this.hiveParameters.maxHoney,
         capacity: this.hiveParameters.capacity
       });
@@ -183,20 +336,6 @@ export default {
       const x = 50 + Math.random() * (this.canvas.width - 100);
       const y = 50 + Math.random() * (this.canvas.height - 100);
       const types = ['common', 'common', 'common', 'rare', 'magical'];
-      const type = types[Math.floor(Math.random() * types.length)];
-      const flower = new Flower(x, y, type);
-      
-      const seasonConfig = SEASONS[this.flowerParameters.season];
-      flower.bloomDuration = seasonConfig.bloomDuration;
-      
-      this.flowers.push(flower);
-    },
-
-    addFlowerAtClick(event) {
-      const rect = this.canvas.getBoundingClientRect();
-      const x = event.clientX - rect.left;
-      const y = event.clientY - rect.top;
-      const types = ['common', 'rare', 'magical'];
       const type = types[Math.floor(Math.random() * types.length)];
       const flower = new Flower(x, y, type);
       
@@ -226,7 +365,19 @@ export default {
         this.findFlowerForBee(bee);
       }
     },
-
+    
+spawnBear() {
+  if (this.bear) return;
+  
+  // Медведь появляется у левого края карты
+  this.bear = new Bear(this.canvas.width, this.canvas.height);
+  this.bear.position = {
+    x: -50,
+    y: 100 + Math.random() * (this.canvas.height - 200)
+  };
+  this.bear.homePosition = { ...this.bear.position };
+  this.bear.state = 'wandering';
+},
     startGameLoop() {
       this.lastTime = performance.now();
       const loop = (currentTime) => {
@@ -276,9 +427,52 @@ export default {
     },
 
     update(deltaTime) {
-      this.flowers.forEach(flower => flower.update());
-      this.flowers = this.flowers.filter(flower => flower.isBlooming);
+      if (this.gameOver) return;
 
+      // Обновляем медведя
+if (this.bear) {
+  const result = this.bear.update(deltaTime, this.hive);
+  if (result === 'hive-destroyed') {
+    this.gameOver = true;
+  }
+
+  if (this.bear.state === 'attacking') {
+    this.bees.forEach(bee => {
+      if (bee.status !== 'attacking-bear') {
+        bee.status = 'attacking-bear';
+        bee.target = { 
+          x: this.bear.position.x, 
+          y: this.bear.position.y 
+        };
+        this.calculateBeeDirection(bee);
+      }
+
+      // Двигаем пчелу к медведю
+      this.moveBee(bee, deltaTime);
+
+      // Если пчела достигла медведя - наносим урон
+      if (this.checkBeeReachedTarget(bee)) {
+        this.bear.takeDamage(0.5);
+        // Можно немного сместить пчелу, чтобы она не зависала на месте
+        bee.target = { 
+          x: this.bear.position.x + Math.random() * 20 - 10,
+          y: this.bear.position.y + Math.random() * 20 - 10
+        };
+        this.calculateBeeDirection(bee);
+      }
+    });
+  } else {
+    // Когда медведь перестал атаковать, можно остановить пчёл
+    this.bees.forEach(bee => {
+      if (bee.status === 'attacking-bear') {
+        bee.status = 'idle';
+        bee.target = null;
+        bee.direction = null;
+      }
+    });
+  }
+}
+      
       this.lastFlowerSpawnTime += deltaTime;
       if (this.lastFlowerSpawnTime > 1000 && 
           this.flowers.length < this.flowerParameters.maxFlowers &&
@@ -300,9 +494,23 @@ export default {
       }
       
       this.bees.forEach(bee => {
+        // Сначала проверяем атаку медведя
+  if (bee.status === 'attacking-bear') {
+    this.moveBee(bee, deltaTime);
+    if (this.checkBeeReachedTarget(bee)) {
+      this.bear.takeDamage(0.5);
+      bee.target = { 
+        x: this.bear.position.x + Math.random() * 20 - 10,
+        y: this.bear.position.y + Math.random() * 20 - 10
+      };
+      this.calculateBeeDirection(bee);
+    }
+    return; // Прерываем выполнение других действий
+  }
         if (this.isHiveFull && bee.status !== 'returning' && bee.status !== 'in-hive') {
           this.returnBeeToHive(bee);
         }
+        
         
         if (bee.status === 'flying-to-flower') {
           this.moveBee(bee, deltaTime);
@@ -486,38 +694,172 @@ export default {
       this.ctx.fill();
       
       this.bees.forEach(bee => {
-        this.ctx.fillStyle = '#FFD700';
+  // Устанавливаем цвет в зависимости от статуса
+  if (bee.status === 'attacking-bear') {
+    this.ctx.fillStyle = '#FF4500'; // Красный для атакующих
+  } else {
+    this.ctx.fillStyle = '#FFD700'; // Жёлтый для обычных
+  }
+  
+  this.ctx.beginPath();
+  
+  if (bee.direction) {
+    const angle = Math.atan2(bee.direction.y, bee.direction.x);
+    this.ctx.ellipse(
+      bee.position.x, 
+      bee.position.y, 
+      10, 
+      5, 
+      angle, 
+      0, 
+      Math.PI * 2
+    );
+  } else {
+    this.ctx.arc(bee.position.x, bee.position.y, 10, 0, Math.PI * 2);
+  }
+  
+  this.ctx.fill();
+  
+  // Отрисовка деталей пчелы
+  this.ctx.fillStyle = '#000';
+  this.ctx.fillRect(bee.position.x - 8, bee.position.y - 5, 4, 10);
+  this.ctx.fillRect(bee.position.x - 2, bee.position.y - 5, 4, 10);
+  this.ctx.fillRect(bee.position.x + 4, bee.position.y - 5, 4, 10);
+  
+  this.ctx.fillStyle = 'rgba(240, 240, 240, 0.7)';
+  this.ctx.beginPath();
+  this.ctx.ellipse(bee.position.x - 3, bee.position.y - 8, 3, 6, 0, 0, Math.PI * 2);
+  this.ctx.fill();
+  this.ctx.beginPath();
+  this.ctx.ellipse(bee.position.x - 3, bee.position.y + 8, 3, 6, 0, 0, Math.PI * 2);
+  this.ctx.fill();
+});
+      
+      if (this.bear) {
+
+        // Радиус обнаружения медведя
+const detectionRadius = this.bear.detectionRadius;
+
+// Прозрачный круг с полупрозрачной заливкой
+this.ctx.beginPath();
+this.ctx.arc(
+  this.bear.position.x,
+  this.bear.position.y,
+  detectionRadius,
+  0,
+  Math.PI * 2
+);
+this.ctx.fillStyle = 'rgba(255, 0, 0, 0.2)';
+this.ctx.fill();
+
+// Обводка круга
+this.ctx.strokeStyle = 'rgba(255, 0, 0, 0.6)';
+this.ctx.lineWidth = 2;
+this.ctx.stroke();
+
+        // Тело медведя
+        this.ctx.fillStyle = '#8B4513';
         this.ctx.beginPath();
-        
-        if (bee.direction) {
-          const angle = Math.atan2(bee.direction.y, bee.direction.x);
-          this.ctx.ellipse(
-            bee.position.x, 
-            bee.position.y, 
-            10, 
-            5, 
-            angle, 
-            0, 
-            Math.PI * 2
-          );
-        } else {
-          this.ctx.arc(bee.position.x, bee.position.y, 10, 0, Math.PI * 2);
-        }
+        this.ctx.arc(this.bear.position.x, this.bear.position.y, 25, 0, Math.PI * 2);
         this.ctx.fill();
         
+        // Голова
+        this.ctx.beginPath();
+        this.ctx.arc(this.bear.position.x - 15, this.bear.position.y - 15, 15, 0, Math.PI * 2);
+        this.ctx.fill();
+        
+        // Уши
+        this.ctx.beginPath();
+        this.ctx.arc(this.bear.position.x - 25, this.bear.position.y - 25, 8, 0, Math.PI * 2);
+        this.ctx.fill();
+        
+        // Глаза
         this.ctx.fillStyle = '#000';
-        this.ctx.fillRect(bee.position.x - 8, bee.position.y - 5, 4, 10);
-        this.ctx.fillRect(bee.position.x - 2, bee.position.y - 5, 4, 10);
-        this.ctx.fillRect(bee.position.x + 4, bee.position.y - 5, 4, 10);
+        this.ctx.beginPath();
+        this.ctx.arc(this.bear.position.x - 20, this.bear.position.y - 15, 3, 0, Math.PI * 2);
+        this.ctx.fill();
         
-        this.ctx.fillStyle = 'rgba(240, 240, 240, 0.7)';
-        this.ctx.beginPath();
-        this.ctx.ellipse(bee.position.x - 3, bee.position.y - 8, 3, 6, 0, 0, Math.PI * 2);
-        this.ctx.fill();
-        this.ctx.beginPath();
-        this.ctx.ellipse(bee.position.x - 3, bee.position.y + 8, 3, 6, 0, 0, Math.PI * 2);
-        this.ctx.fill();
+        // Шкала здоровья
+        const healthWidth = 60;
+        const healthHeight = 8;
+        const healthX = this.bear.position.x - healthWidth / 2;
+        const healthY = this.bear.position.y - 50;
+        
+        // Фон шкалы
+        this.ctx.fillStyle = '#555';
+        this.ctx.fillRect(healthX, healthY, healthWidth, healthHeight);
+        
+        // Здоровье
+        const healthPercent = this.bear.health / this.bear.maxHealth;
+        this.ctx.fillStyle = healthPercent > 0.5 ? '#4CAF50' : healthPercent > 0.25 ? '#FFC107' : '#F44336';
+        this.ctx.fillRect(healthX, healthY, healthWidth * healthPercent, healthHeight);
+        
+        // Обводка шкалы
+        this.ctx.strokeStyle = '#000';
+        this.ctx.lineWidth = 1;
+        this.ctx.strokeRect(healthX, healthY, healthWidth, healthHeight);
+      }
+    },
+    
+    addBeeManually() {
+      if (this.canAddBee) {
+        this.addBee();
+        this.hive.honey -= 25;
+      }
+    },
+    
+    toggleDeleteMode() {
+      this.deleteMode = !this.deleteMode;
+      if (this.deleteMode) {
+        this.canvas.style.cursor = 'pointer';
+        this.canvas.addEventListener('click', this.deleteBeeAtClick);
+      } else {
+        this.canvas.style.cursor = 'default';
+        this.canvas.removeEventListener('click', this.deleteBeeAtClick);
+      }
+    },
+    
+    deleteBeeAtClick(event) {
+      if (!this.deleteMode) return;
+      
+      const rect = this.canvas.getBoundingClientRect();
+      const x = event.clientX - rect.left;
+      const y = event.clientY - rect.top;
+      
+      let closestBee = null;
+      let minDistance = Infinity;
+      
+      this.bees.forEach(bee => {
+        const dx = bee.position.x - x;
+        const dy = bee.position.y - y;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        
+        if (distance < 15 && distance < minDistance) {
+          minDistance = distance;
+          closestBee = bee;
+        }
       });
+      
+      
+      if (closestBee) {
+        const beeIndex = this.bees.indexOf(closestBee);
+        if (beeIndex !== -1) {
+          this.bees.splice(beeIndex, 1);
+          
+          const hiveBeeIndex = this.hive.bees.findIndex(b => b.id === closestBee.id);
+          if (hiveBeeIndex !== -1) {
+            this.hive.bees.splice(hiveBeeIndex, 1);
+          }
+        }
+      }
+    },
+    
+    restartGame() {
+      this.gameOver = false;
+      this.bear = null;
+      this.flowers = [];
+      this.bees = [];
+      this.initGame();
     }
   }
 };
@@ -742,14 +1084,101 @@ canvas {
   box-shadow: 0 0 0 2px rgba(52, 152, 219, 0.2);
 }
 
-/* Анимации и интерактивность */
-input, select {
+/* Сообщение о конце игры */
+.game-over-message {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: rgba(255, 255, 255, 0.95);
+  padding: 30px;
+  border-radius: 15px;
+  text-align: center;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+  z-index: 100;
+  max-width: 80%;
+}
+
+.game-over-message h2 {
+  color: #e74c3c;
+  margin-bottom: 15px;
+}
+
+.game-over-message p {
+  font-size: 1.2rem;
+  margin-bottom: 20px;
+}
+
+.game-over-message button {
+  padding: 12px 25px;
+  background: #3498db;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 1rem;
+  cursor: pointer;
   transition: all 0.3s ease;
 }
 
-input:hover, select:hover {
+.game-over-message button:hover {
+  background: #2980b9;
   transform: translateY(-2px);
 }
+
+/* Кнопки управления */
+.bee-controls {
+  margin-top: 15px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.bee-controls button {
+  padding: 10px 15px;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+}
+
+.bee-controls button:disabled {
+  background: #95a5a6;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+.bee-controls button:nth-child(1) {
+  background: #3498db;
+}
+
+.bee-controls button:nth-child(1):hover {
+  background: #2980b9;
+}
+
+.bee-controls button:nth-child(2) {
+  background: #e74c3c;
+}
+
+.bee-controls button:nth-child(2):hover {
+  background: #c0392b;
+}
+
+.bee-controls button:nth-child(3) {
+  background: #795548;
+}
+
+.bee-controls button:nth-child(3):hover {
+  background: #5D4037;
+}
+
+.delete-active {
+  background: #c0392b !important;
+}
+
 /* Адаптивность */
 @media (max-width: 1200px) {
   .app-container {
@@ -808,50 +1237,7 @@ input:hover, select:hover {
   .parameter {
     padding: 15px;
   }
-}
-/* Стили для кнопок управления пчелами */
-.bee-controls {
-  margin-top: 15px;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.bee-controls button {
-  padding: 10px 15px;
-  background: #3498db;
-  color: white;
-  border: none;
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 0.9rem;
-  transition: all 0.3s ease;
-  box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-}
-
-.bee-controls button:hover {
-  background: #2980b9;
-  transform: translateY(-2px);
-  box-shadow: 0 4px 8px rgba(0,0,0,0.15);
-}
-
-.bee-controls button:disabled {
-  background: #95a5a6;
-  cursor: not-allowed;
-  transform: none;
-  box-shadow: none;
-}
-
-.bee-controls button.delete-active {
-  background: #e74c3c;
-}
-
-.bee-controls button.delete-active:hover {
-  background: #c0392b;
-}
-
-/* Адаптивность для кнопок */
-@media (max-width: 480px) {
+  
   .bee-controls {
     flex-direction: row;
     flex-wrap: wrap;
@@ -862,5 +1248,38 @@ input:hover, select:hover {
     font-size: 0.8rem;
     padding: 8px 10px;
   }
+}
+.hive-info.right {
+  right: 25px;
+  left: auto;
+  top: 25px;
+  min-width: 200px;
+  background: rgba(255, 255, 255, 0.9);
+}
+
+/* Уменьшаем размеры текста в панели */
+.hive-info.right h2 {
+  font-size: 1.2rem;
+  margin-bottom: 10px;
+}
+
+.hive-info.right p {
+  margin: 8px 0;
+  font-size: 0.9rem;
+}
+
+/* Делаем кнопки компактнее */
+.bee-controls button {
+  padding: 8px 10px;
+  font-size: 0.8rem;
+  margin-bottom: 5px;
+}
+/* Улучшаем видимость медведя */
+canvas {
+  background: linear-gradient(to bottom, #e0f7fa, #b2ebf2);
+}
+.bee-attacking {
+  background-color: #FF4500;
+  box-shadow: 0 0 10px #FF0000;
 }
 </style>
