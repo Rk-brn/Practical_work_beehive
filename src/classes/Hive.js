@@ -1,148 +1,122 @@
 export default class Hive {
   constructor(position = { x: 400, y: 500 }) {
-    this.position = position;   // Позиция улья
-    this.capacity = 20;         // Максимум 20 пчел
-    this.bees = [];             // Массив пчел
-    this.id = `hive-${Date.now().toString(36)}`; //Уникальный индекс
-    this.honey = 0;             // Количество мёда
-    this.maxHoney = 100;        // Максимальный запас мёда
-    this.health = 100;          // Здоровье улья (0-100)
-    this.defense = 1;           // Уровень защиты (1-5)
+    this.id = `hive-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    this.position = position;
+    this.capacity = 20;
+    this.bees = [];
+    this.honey = 0;
+    this.maxHoney = 100;
+    this.health = 100;
+    this.maxHealth = 100;
+    this.defense = 1;
+    this.discoveredPatches = new Map(); // Хранит информацию о полянках
+    this.lastSpawnTime = Date.now();
   }
 
-  // Добавить пчелу в улей
   addBee(bee) {
-    if (this.bees.length >= this.capacity) {
-      console.warn('Улей переполнен! Максимум 20 пчел.');
-      return false;
-    }
+    if (this.bees.length >= this.capacity) return false;
     
+    bee.position = { ...this.position };
+    bee.status = 'in-hive';
     this.bees.push(bee);
-    bee.position = {...this.position}; // Помещаем пчелу в улей
-    bee.inHive = true;
-    console.log(`Пчела ${bee.id} добавлена в улей. Всего пчел: ${this.bees.length}`);
     return true;
   }
 
-  // Убрать пчелу из улья
   removeBee(beeId) {
-    const index = this.bees.findIndex(bee => bee.id === beeId);
+    const index = this.bees.findIndex(b => b.id === beeId);
     if (index !== -1) {
-      const [removedBee] = this.bees.splice(index, 1);
-      removedBee.inHive = false;
-      console.log(`Пчела ${beeId} удалена из улья. Осталось: ${this.bees.length}`);
-      return true;
+      return this.bees.splice(index, 1)[0];
     }
-    console.warn(`Пчела ${beeId} не найдена в улье!`);
-    return false;
-  }
-  
-  // Добавить мёд в улей
-  addHoney(amount) {
-    const actualAmount = Math.min(amount, this.maxHoney - this.honey);
-    this.honey += actualAmount;
-    console.log(`Добавлено ${actualAmount} мёда. Всего: ${this.honey}/${this.maxHoney}`);
-    return actualAmount;
-  }
-  
-  // Использовать мёд
-  useHoney(amount) {
-    if (this.honey < amount) {
-      console.warn(`Недостаточно мёда! Нужно: ${amount}, есть: ${this.honey}`);
-      return false;
-    }
-    
-    this.honey -= amount;
-    console.log(`Использовано ${amount} мёда. Осталось: ${this.honey}`);
-    return true;
-  }
-  
-  // Атака ос
-  takeWaspAttack(waspsCount) {
-    // Рассчитываем урон на основе защиты и количества охранников
-    const guardBees = this.bees.filter(b => b.type === 'guard').length;
-    const defensePower = this.defense * (1 + guardBees * 0.2);
-    
-    // Базовый урон
-    const baseDamage = waspsCount * 5;
-    
-    // Фактический урон с учетом защиты
-    const actualDamage = Math.max(0, baseDamage - defensePower);
-    
-    // Применяем урон
-    this.health = Math.max(0, this.health - actualDamage);
-    
-    // Дополнительные эффекты при сильной атаке
-    if (actualDamage > 20) {
-      // Потеря пчел при сильной атаке
-      const beesToRemove = Math.min(3, Math.floor(actualDamage / 10));
-      this.removeRandomBees(beesToRemove);
-    }
-    
-    console.log(`Атака ${waspsCount} ос! Урон: ${actualDamage}. Здоровье: ${this.health}`);
-    
-    // Возвращаем информацию об атаке
-    return {
-      damage: actualDamage,
-      isDestroyed: this.health <= 0
-    };
-  }
-  
-  // Удалить случайных пчел (при атаке)
-  removeRandomBees(count) {
-    const beesToRemove = Math.min(count, this.bees.length);
-    for (let i = 0; i < beesToRemove; i++) {
-      const randomIndex = Math.floor(Math.random() * this.bees.length);
-      const [bee] = this.bees.splice(randomIndex, 1);
-      console.log(`Пчела ${bee.id} погибла при защите улья!`);
-    }
-  }
-  
-  // Лечение улья
-  heal(amount) {
-    this.health = Math.min(100, this.health + amount);
-    console.log(`Улей восстановлен на ${amount}. Здоровье: ${this.health}`);
-    return this.health;
-  }
-  
-  // Улучшить защиту
-  upgradeDefense() {
-    if (this.defense >= 5) {
-      console.warn('Достигнут максимальный уровень защиты!');
-      return false;
-    }
-    
-    if (this.useHoney(20 * this.defense)) {
-      this.defense++;
-      console.log(`Уровень защиты повышен до ${this.defense}`);
-      return true;
-    }
-    
-    return false;
-  }
-  
-  // Увеличить емкость для мёда
-  upgradeHoneyCapacity() {
-    if (this.useHoney(30)) {
-      this.maxHoney += 50;
-      console.log(`Вместимость мёда увеличена до ${this.maxHoney}`);
-      return true;
-    }
-    return false;
+    return null;
   }
 
-  // Получить информацию об улье
+  addHoney(amount) {
+    const spaceLeft = this.maxHoney - this.honey;
+    const added = Math.min(amount, spaceLeft);
+    this.honey += added;
+    
+    // Автоматическое создание новых пчел
+    if (this.honey >= 20 && this.bees.length < this.capacity) {
+      const now = Date.now();
+      if (now - this.lastSpawnTime > 5000) { // Не чаще чем раз в 5 сек
+        this.lastSpawnTime = now;
+        this.honey -= 20;
+        return { added, spawnedBee: true };
+      }
+    }
+    
+    return { added, spawnedBee: false };
+  }
+
+  useHoney(amount) {
+    if (this.honey < amount) return false;
+    this.honey -= amount;
+    return true;
+  }
+
+  takeDamage(amount) {
+    const damage = Math.max(0, amount - this.defense);
+    this.health = Math.max(0, this.health - damage);
+    
+    if (this.health <= 0) {
+      this.handleDestruction();
+    }
+    
+    return damage;
+  }
+
+  handleDestruction() {
+    // При разрушении улья теряем 50% пчел и весь мед
+    const beesToKeep = Math.floor(this.bees.length * 0.5);
+    while (this.bees.length > beesToKeep) {
+      this.bees.pop();
+    }
+    this.honey = 0;
+    this.health = 10; // Минимальное здоровье для восстановления
+  }
+
+  addDiscoveredPatch(patchId, beeId) {
+    if (!this.discoveredPatches.has(patchId)) {
+      this.discoveredPatches.set(patchId, {
+        discoveredBy: beeId,
+        discoveryTime: Date.now(),
+        lastVisited: Date.now()
+      });
+    }
+  }
+
+  getPatchInfo(patchId) {
+    return this.discoveredPatches.get(patchId) || null;
+  }
+
+  upgrade(option) {
+    const upgrades = {
+      capacity: { cost: 30, effect: () => this.capacity += 5 },
+      honeyStorage: { cost: 40, effect: () => this.maxHoney += 50 },
+      defense: { cost: 25 * this.defense, effect: () => this.defense = Math.min(5, this.defense + 1) },
+      heal: { cost: 20, effect: () => this.health = Math.min(this.maxHealth, this.health + 30) }
+    };
+
+    if (!upgrades[option] || !this.useHoney(upgrades[option].cost)) {
+      return false;
+    }
+
+    upgrades[option].effect();
+    return true;
+  }
+
   getInfo() {
     return {
       id: this.id,
       position: this.position,
-      beeCount: this.bees.length,
+      bees: this.bees.length,
       capacity: this.capacity,
-      isFull: this.bees.length >= this.capacity,
       honey: this.honey,
       maxHoney: this.maxHoney,
       health: this.health,
-      defense: this.defense
+      maxHealth: this.maxHealth,
+      defense: this.defense,
+      discoveredPatches: this.discoveredPatches.size
     };
   }
 }

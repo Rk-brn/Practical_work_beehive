@@ -1,9 +1,7 @@
-
 <template>
   <div class="app-container">
     <div class="game-area">
       <canvas ref="gameCanvas" width="800" height="600"></canvas>
-      
       <!-- Панель информации об улье - теперь справа -->
       <div class="hive-info right">
         <h2>Улей</h2>
@@ -11,23 +9,19 @@
         <p>Пчёлы: {{ hive ? hive.bees.length : 0 }}/{{ hive ? hive.capacity : 0 }}</p>
         <p>Здоровье: {{ hive ? Math.round(hive.health) : 0 }}%</p>
         <p v-if="isHiveFull" class="hive-full-warning">Улей переполнен!</p>
-        
         <div class="bee-controls">
           <button @click="spawnBear" :disabled="bear">Вызвать медведя</button>
         </div>
       </div>
-      
       <div v-if="gameOver" class="game-over-message">
         <h2>Симуляция окончена!</h2>
         <p>Медведь разрушил улей</p>
         <button @click="restartGame">Начать заново</button>
       </div>
     </div>
-    
     <!-- Панель параметров -->
     <div class="parameters-panel">
       <h2>Параметры игры</h2>
-      
       <div class="parameter-group">
         <h3>Пчёлы</h3>
         <div class="parameter">
@@ -49,7 +43,6 @@
           </label>
         </div>
       </div>
-      
       <div class="parameter-group">
         <h3>Улей</h3>
         <div class="parameter">
@@ -65,7 +58,6 @@
           </label>
         </div>
       </div>
-      
       <div class="parameter-group">
         <h3>Цветы</h3>
         <div class="parameter">
@@ -83,6 +75,18 @@
             <input type="range" min="1" max="100" step="1" v-model.number="flowerSpawnRate" @input="updateFlowerParameters">
           </label>
         </div>
+        <div class="parameter">
+          <label>
+            Количество цветов на полянке: {{ flowerParameters.flowersPerPatch }}
+            <input type="range" min="3" max="10" step="1" v-model.number="flowerParameters.flowersPerPatch" @input="updateFlowerParameters">
+          </label>
+        </div>
+        <div class="parameter">
+          <label>
+            Время жизни полянки: {{ flowerParameters.patchLifetime }} секунд
+            <input type="range" min="10" max="60" step="1" v-model.number="flowerParameters.patchLifetime" @input="updateFlowerParameters">
+          </label>
+        </div>
       </div>
     </div>
   </div>
@@ -92,144 +96,8 @@
 import Flower from './classes/Flower';
 import Hive from './classes/Hive';
 import Bee from './classes/Bee';
-
-class Bear {
-  constructor(canvasWidth, canvasHeight) {
-    this.id = `bear-${Date.now()}`;
-    this.position = { 
-      x: Math.random() * canvasWidth,
-      y: Math.random() * canvasHeight
-    };
-    this.target = null;
-    this.health = 100;
-    this.maxHealth = 100;
-    this.speed = 0.1;
-    this.detectionRadius = 100; // Радиус обнаружения улья
-    this.wanderingRadius = 300; // Как далеко может уйти от точки старта
-    this.attackPower = 2;
-    this.attackCooldown = 0;
-    this.state = 'idle'; // wandering, chasing, attacking, leaving
-    this.homePosition = { ...this.position }; // Точка, вокруг которой бродит
-    this.canvasWidth = canvasWidth;
-    this.canvasHeight = canvasHeight;
-    this.nextWanderTarget = this.getRandomWanderTarget();
-  }
-
-  getRandomWanderTarget() {
-    return {
-      x: this.homePosition.x + (Math.random() * this.wanderingRadius * 2 - this.wanderingRadius),
-      y: this.homePosition.y + (Math.random() * this.wanderingRadius * 2 - this.wanderingRadius)
-    };
-  }
-
-  update(deltaTime, hive) {
-  // Ограничиваем позицию медведя в пределах карты
-  this.position.x = Math.max(20, Math.min(this.canvasWidth - 20, this.position.x));
-  this.position.y = Math.max(20, Math.min(this.canvasHeight - 20, this.position.y));
-
-  if (this.state === 'idle') {
-  // Медведь всегда хочет мёда — сразу начинаем поиск улья
-  const dx = hive.position.x - this.position.x;
-  const dy = hive.position.y - this.position.y;
-  const distance = Math.sqrt(dx * dx + dy * dy);
-
-  if (distance <= this.detectionRadius) {
-    this.target = hive;
-    this.state = 'moving';
-  } else {
-    this.state = 'wandering';
-    this.wanderTarget = this.getRandomWanderTarget(); // Используем getRandomWanderTarget()
-  }
-}
-
-if (this.state === 'wandering') {
-  // Генерируем случайную точку, если её нет
-  if (!this.wanderTarget) {
-    this.wanderTarget = {
-      x: Math.random() * this.canvasWidth,
-      y: Math.random() * this.canvasHeight
-    };
-  }
-
-  // Вычисляем расстояние до цели
-  const dx = this.wanderTarget.x - this.position.x;
-  const dy = this.wanderTarget.y - this.position.y;
-  const distance = Math.sqrt(dx * dx + dy * dy);
-
-  // Двигаемся к цели
-  if (distance > 0) {
-    this.position.x += (dx / distance) * this.speed * deltaTime;
-    this.position.y += (dy / distance) * this.speed * deltaTime;
-  }
-
-  // Если достигли точки — генерируем новую
-  if (distance < 20) {
-    this.wanderTarget = {
-      x: Math.random() * this.canvasWidth,
-      y: Math.random() * this.canvasHeight
-    };
-  }
-
-  // Проверяем, видим ли улей
-  const hiveDistance = Math.hypot(hive.position.x - this.position.x, hive.position.y - this.position.y);
-  if (hiveDistance <= this.detectionRadius) {
-    this.target = hive;
-    this.state = 'moving';
-    this.wanderTarget = null; // Очищаем цель брождения
-  }
-}
-
-
-  if (this.state === 'moving' && this.target) {
-    const dx = this.target.position.x - this.position.x;
-    const dy = this.target.position.y - this.position.y;
-    const distance = Math.sqrt(dx * dx + dy * dy);
-
-    if (distance > 0) {
-      this.position.x += (dx / distance) * this.speed * deltaTime;
-      this.position.y += (dy / distance) * this.speed * deltaTime;
-    }
-
-    if (distance < 50) {
-      this.state = 'attacking';
-    }
-  }
-
-  if (this.state === 'attacking') {
-    this.attackCooldown += deltaTime;
-    if (this.attackCooldown > 1000) {
-      hive.health -= this.attackPower;
-      this.attackCooldown = 0;
-      if (hive.health <= 0) {
-        this.state = 'leaving';
-        return 'hive-destroyed';
-      }
-    }
-  }
-
-  if (this.state === 'leaving') {
-    this.position.x += this.speed * deltaTime;
-    if (this.position.x > this.canvasWidth + 100) {
-      this.state = 'gone';
-    }
-  }
-
-  return null;
-}
- isAtTarget(target) {
-  const dx = target.x - this.position.x;
-  const dy = target.y - this.position.y;
-  return Math.sqrt(dx * dx + dy * dy) < 20; // Расстояние считается как "достигнуто"
-}
-
-  takeDamage(amount) {
-    this.health -= amount;
-    if (this.health <= 0) {
-      this.state = 'dead';
-    }
-    
-  }
-}
+import FlowerPatch from './classes/FlowerPatch';
+import Bear from './classes/Bear';
 
 const SEASONS = {
   spring: { spawnChance: 0.3, maxFlowers: 30, bloomDuration: 15000 },
@@ -245,6 +113,7 @@ export default {
       canvas: null,
       ctx: null,
       flowers: [],
+      patches: [],
       hive: null,
       bees: [],
       lastTime: 0,
@@ -259,21 +128,21 @@ export default {
         speed: 0.1,
         collectionSpeed: 0.02,
         capacity: 10,
-        lifespan: 10000, // Время жизни пчелы в миллисекундах (например, 60 секунд)
-        lifespanVariance: 5000 // Дисперсия ±5 секунд
+        lifespan: 100000,
+        lifespanVariance: 5000
       },
       
       hiveParameters: {
         maxHoney: 100,
         capacity: 20,
       },
-      
       flowerParameters: {
         season: 'summer',
         spawnChance: 0.5,
         maxFlowers: 50,
+        flowersPerPatch: 5,
+        patchLifetime: 30,
       },
-      
       flowerSpawnRate: 50,
       lastFlowerSpawnTime: 0
     };
@@ -286,7 +155,7 @@ export default {
       return this.flowerSpawnRate / 100;
     },
     canAddBee() {
-      return this.hive && this.hive.honey >= 25 && this.hive.bees.length < this.hive.capacity;
+      return this.hive && this.hive.honey >= 25 && this.bees.length < this.hive.capacity;
     }
   },
   watch: {
@@ -310,14 +179,50 @@ export default {
   },
   methods: {
     removeBee(bee, index) {
-    this.bees.splice(index, 1);
-    const hiveIndex = this.hive.bees.findIndex(b => b.id === bee.id);
-    if (hiveIndex !== -1) {
-      this.hive.bees.splice(hiveIndex, 1);
-    }
-  },
+      this.bees.splice(index, 1);
+      const hiveBeeIndex = this.hive.bees.findIndex(b => b.id === bee.id);
+      if (hiveBeeIndex !== -1) {
+        this.hive.bees.splice(hiveBeeIndex, 1);
+      }
+    },
+
+    notifyBeesAboutPatch(patchId) {
+      const patch = this.patches.find(p => p.id === patchId);
+      if (!patch || patch.discoveredByBee) return;
+
+      const availableFlowers = patch.flowers.filter(f => f.isBlooming && f.pollen > 0);
+      if (availableFlowers.length === 0) return;
+
+      if (!patch.discoveredByBee) {
+        patch.discoveredByBee = true;
+        
+        const idleBees = this.bees.filter(bee => 
+          bee.status === 'idle' && 
+          !bee.isNotifiedAboutPatch
+        );
+        
+        const beesToNotify = Math.max(1, Math.floor(idleBees.length * 0.2));
+        
+        idleBees.slice(0, beesToNotify).forEach((bee, i) => {
+          setTimeout(() => {
+            const flower = availableFlowers[
+              Math.floor(Math.random() * availableFlowers.length)
+            ];
+            
+            bee.target = { x: flower.x, y: flower.y };
+            bee.status = 'flying-to-flower';
+            this.calculateBeeDirection(bee);
+            bee.isNotifiedAboutPatch = true;
+            
+            setTimeout(() => {
+              bee.isNotifiedAboutPatch = false;
+            }, 15000 + Math.random() * 15000);
+          }, i * 3000);
+        });
+      }
+    },
+
     initGame() {
-      // Случайное расположение улья
       const hiveX = 100 + Math.random() * (this.canvas.width - 200);
       const hiveY = 100 + Math.random() * (this.canvas.height - 200);
       
@@ -328,8 +233,8 @@ export default {
         capacity: this.hiveParameters.capacity
       });
 
-      for (let i = 0; i < 15; i++) {
-        this.addRandomFlower();
+      for (let i = 0; i < 4; i++) {
+        this.addRandomFlowerPatch();
       }
 
       for (let i = 0; i < 5; i++) {
@@ -337,17 +242,13 @@ export default {
       }
     },
 
-    addRandomFlower() {
+    addRandomFlowerPatch() {
       const x = 50 + Math.random() * (this.canvas.width - 100);
       const y = 50 + Math.random() * (this.canvas.height - 100);
-      const types = ['common', 'common', 'common', 'rare', 'magical'];
-      const type = types[Math.floor(Math.random() * types.length)];
-      const flower = new Flower(x, y, type);
-      
-      const seasonConfig = SEASONS[this.flowerParameters.season];
-      flower.bloomDuration = seasonConfig.bloomDuration;
-      
-      this.flowers.push(flower);
+      const count = Math.floor(Math.random() * 4) + 3;
+      const patch = new FlowerPatch(x, y, count);
+      this.patches.push(patch);
+      this.flowers.push(...patch.flowers);
     },
 
     addBee() {
@@ -357,13 +258,13 @@ export default {
       bee.speed = this.beeParameters.speed;
       bee.collectionSpeed = this.beeParameters.collectionSpeed;
       bee.capacity = this.beeParameters.capacity;
-      bee.birthTime = Date.now(); // Запоминаем момент рождения
+      bee.birthTime = Date.now();
       bee.lifespan = this.beeParameters.lifespan + Math.random() * this.beeParameters.lifespanVariance * 2 - this.beeParameters.lifespanVariance;
       bee.position = { 
         x: this.hive.position.x + (Math.random() * 20 - 10), 
         y: this.hive.position.y + (Math.random() * 20 - 10)
       };
-      
+      bee.status = 'in-hive';
       this.hive.bees.push(bee);
       this.bees.push(bee);
       
@@ -372,18 +273,18 @@ export default {
       }
     },
     
-spawnBear() {
-  if (this.bear) return;
-  
-  // Медведь появляется у левого края карты
-  this.bear = new Bear(this.canvas.width, this.canvas.height);
-  this.bear.position = {
-    x: -50,
-    y: 100 + Math.random() * (this.canvas.height - 200)
-  };
-  this.bear.homePosition = { ...this.bear.position };
-  this.bear.state = 'wandering';
-},
+    spawnBear() {
+      if (this.bear) return;
+      
+      this.bear = new Bear(this.canvas.width, this.canvas.height);
+      this.bear.position = {
+        x: -50,
+        y: 100 + Math.random() * (this.canvas.height - 200)
+      };
+      this.bear.homePosition = { ...this.bear.position };
+      this.bear.state = 'wandering';
+    },
+
     startGameLoop() {
       this.lastTime = performance.now();
       const loop = (currentTime) => {
@@ -435,99 +336,85 @@ spawnBear() {
     update(deltaTime) {
       if (this.gameOver) return;
 
+      const now = Date.now();
+      this.bees.forEach((bee, index) => {
+        if (now - bee.birthTime > bee.lifespan) {
+          this.removeBee(bee, index);
+        }
+      });
 
-   const now = Date.now();
-this.bees.forEach((bee, index) => {
-  if (now - bee.birthTime > bee.lifespan) {
-    this.removeBee(bee, index);
-  }
-});
+      if (this.bear) {
+        const result = this.bear.update(deltaTime, this.hive);
+        if (result === 'hive-destroyed') {
+          this.gameOver = true;
+        }
 
+        if (this.bear.state === 'attacking') {
+          this.bees.forEach(bee => {
+            if (bee.status !== 'attacking-bear') {
+              bee.status = 'attacking-bear';
+              bee.target = { 
+                x: this.bear.position.x, 
+                y: this.bear.position.y 
+              };
+              this.calculateBeeDirection(bee);
+            }
 
+            this.moveBee(bee, deltaTime);
 
-      // Обновляем медведя
-if (this.bear) {
-  const result = this.bear.update(deltaTime, this.hive);
-  if (result === 'hive-destroyed') {
-    this.gameOver = true;
-  }
-
-  if (this.bear.state === 'attacking') {
-    this.bees.forEach(bee => {
-      if (bee.status !== 'attacking-bear') {
-        bee.status = 'attacking-bear';
-        bee.target = { 
-          x: this.bear.position.x, 
-          y: this.bear.position.y 
-        };
-        this.calculateBeeDirection(bee);
+            if (this.checkBeeReachedTarget(bee)) {
+              this.bear.takeDamage(0.5);
+              bee.target = { 
+                x: this.bear.position.x + Math.random() * 20 - 10,
+                y: this.bear.position.y + Math.random() * 20 - 10
+              };
+              this.calculateBeeDirection(bee);
+            }
+          });
+        }
       }
 
-      // Двигаем пчелу к медведю
-      this.moveBee(bee, deltaTime);
+      this.patches.forEach(patch => patch.update(deltaTime));
+      this.patches = this.patches.filter(patch => !patch.isDead);
 
-      // Если пчела достигла медведя - наносим урон
-      if (this.checkBeeReachedTarget(bee)) {
-        this.bear.takeDamage(0.5);
-        // Можно немного сместить пчелу, чтобы она не зависала на месте
-        bee.target = { 
-          x: this.bear.position.x + Math.random() * 20 - 10,
-          y: this.bear.position.y + Math.random() * 20 - 10
-        };
-        this.calculateBeeDirection(bee);
-      }
-    });
-  } else {
-    // Когда медведь перестал атаковать, можно остановить пчёл
-    this.bees.forEach(bee => {
-      if (bee.status === 'attacking-bear') {
-        bee.status = 'idle';
-        bee.target = null;
-        bee.direction = null;
-      }
-    });
-  }
-}
-      
       this.lastFlowerSpawnTime += deltaTime;
-      if (this.lastFlowerSpawnTime > 1000 && 
-          this.flowers.length < this.flowerParameters.maxFlowers &&
-          Math.random() < this.flowerParameters.spawnChance) {
-        this.addRandomFlower();
+      if (this.lastFlowerSpawnTime > 5000 && 
+          this.flowers.length < this.flowerParameters.maxFlowers && 
+          Math.random() < this.flowerParameters.spawnChance / 100) {
+        this.addRandomFlowerPatch();
         this.lastFlowerSpawnTime = 0;
       }
-      
-      this.flowerSearchCooldown += deltaTime;
-      const shouldSearch = this.flowerSearchCooldown > 500;
-      if (shouldSearch) {
-        this.flowerSearchCooldown = 0;
-      }
-      
-      this.isHiveFull = this.hive.honey >= this.hive.maxHoney;
-      
-      if (this.isHiveFull) {
-        this.returnAllBeesToHive();
-      }
-      
+
+      let activeBees = [];
+      let hiveBees = [];
+
       this.bees.forEach(bee => {
-        // Сначала проверяем атаку медведя
-  if (bee.status === 'attacking-bear') {
-    this.moveBee(bee, deltaTime);
-    if (this.checkBeeReachedTarget(bee)) {
-      this.bear.takeDamage(0.5);
-      bee.target = { 
-        x: this.bear.position.x + Math.random() * 20 - 10,
-        y: this.bear.position.y + Math.random() * 20 - 10
-      };
-      this.calculateBeeDirection(bee);
-    }
-    return; // Прерываем выполнение других действий
-  }
-        if (this.isHiveFull && bee.status !== 'returning' && bee.status !== 'in-hive') {
-          this.returnBeeToHive(bee);
+        if (bee.status === 'in-hive') {
+          hiveBees.push(bee);
+        } else {
+          activeBees.push(bee);
         }
-        
-        
+      });
+
+      const scouts = activeBees.filter(b => b.status === 'idle');
+      scouts.slice(0, Math.max(1, Math.floor(hiveBees.length * 0.3))).forEach(bee => {
+        this.findFlowerForBee(bee);
+      });
+
+      this.bees.forEach(bee => {
+        if (bee.status === 'attacking-bear') {
+          this.moveBee(bee, deltaTime);
+          if (this.checkBeeReachedTarget(bee)) {
+            this.bear.takeDamage(0.5);
+            bee.target = { 
+              x: this.bear.position.x + Math.random() * 20 - 10,
+              y: this.bear.position.y + Math.random() * 20 - 10
+            };
+            this.calculateBeeDirection(bee);
+          }
+          return;
+        }
+
         if (bee.status === 'flying-to-flower') {
           this.moveBee(bee, deltaTime);
           if (this.checkBeeReachedTarget(bee)) {
@@ -535,28 +422,26 @@ if (this.bear) {
             bee.currentFlower = this.findFlowerAtPosition(bee.position);
           }
         }
-        
+
         if (bee.status === 'collecting') {
-          if (!bee.currentFlower || !bee.currentFlower.isBlooming) {
-            this.returnBeeToHive(bee);
-            return;
-          }
-          
           this.collectPollen(bee, deltaTime);
-          
           if (bee.pollen >= bee.capacity) {
             this.returnBeeToHive(bee);
           }
         }
-        
+
         if (bee.status === 'returning') {
           this.moveBee(bee, deltaTime);
           if (this.checkBeeReachedHive(bee)) {
             this.depositPollen(bee);
+            bee.status = 'in-hive';
+            bee.target = null;
+            bee.direction = null;
+            bee.pollen = 0;
           }
         }
-        
-        if (bee.status === 'idle' && shouldSearch && !this.isHiveFull) {
+
+        if (bee.status === 'idle') {
           this.findFlowerForBee(bee);
         }
       });
@@ -568,32 +453,120 @@ if (this.bear) {
     },
 
     returnBeeToHive(bee) {
-      bee.status = 'returning';
-      bee.target = { 
-        x: this.hive.position.x, 
-        y: this.hive.position.y 
-      };
-      this.calculateBeeDirection(bee);
-    },
+    bee.status = 'returning';
+    bee.target = { ...this.hive.position };
+    bee.calculateDirection();
 
-    returnAllBeesToHive() {
-      this.bees.forEach(bee => {
-        if (bee.status !== 'returning' && bee.status !== 'in-hive') {
-          this.returnBeeToHive(bee);
+    // Безопасная проверка на наличие цветка и patchId
+    if (bee.isScout && bee.pollen > 0 && bee.currentFlower?.patchId) {
+      this.startScoutDance(bee);
+    }
+  },
+
+  startScoutDance(bee) {
+    // Сохраняем patchId перед возможной очисткой currentFlower
+    const patchId = bee.currentFlower?.patchId;
+    if (!patchId) return;
+
+    bee.isDancing = true;
+    bee.danceStartTime = Date.now();
+    bee.danceDuration = 3000 + Math.random() * 2000;
+
+    setTimeout(() => {
+      if (bee.isDancing) {
+        this.informOtherBees(patchId); // Используем сохраненный patchId
+      }
+    }, 1000);
+
+    setTimeout(() => {
+      bee.isDancing = false;
+      bee.isScout = false;
+    }, bee.danceDuration);
+  },
+
+  informOtherBees(patchId) {
+    const patch = this.patches.find(p => p.id === patchId);
+    if (!patch) return;
+
+    const availableFlowers = patch.flowers.filter(f => f.isBlooming && f.pollen > 0);
+    if (availableFlowers.length === 0) return;
+
+    const hiveBees = this.bees.filter(b => 
+      b.status === 'in-hive' && 
+      !b.isNotifiedAboutPatch
+    );
+
+    const beesToInform = Math.max(1, Math.floor(hiveBees.length * 0.3));
+    
+    hiveBees.slice(0, beesToInform).forEach((bee, index) => {
+      setTimeout(() => {
+        const flower = availableFlowers[
+          Math.floor(Math.random() * availableFlowers.length)
+        ];
+        
+        if (flower) {
+          bee.isNotifiedAboutPatch = true;
+          bee.status = 'flying-to-flower';
+          bee.target = flower;
+          bee.currentFlower = flower;
+          bee.calculateDirection();
+          
+          setTimeout(() => {
+            bee.isNotifiedAboutPatch = false;
+          }, 15000 + Math.random() * 15000);
         }
-      });
-    },
+      }, index * 300);
+    });
+  },
 
     findFlowerForBee(bee) {
-      if (this.isHiveFull) return;
-      
-      const availableFlowers = this.flowers.filter(f => f.isBlooming && f.pollen > 0);
-      if (availableFlowers.length > 0) {
-        const flower = availableFlowers[Math.floor(Math.random() * availableFlowers.length)];
+      if (this.isHiveFull || bee.isNotifiedAboutPatch) return;
+
+      const knownPatches = this.patches.filter(p => p.discoveredByBee);
+      if (knownPatches.length > 0) {
+        const randomPatch = knownPatches[Math.floor(Math.random() * knownPatches.length)];
+        const flowers = randomPatch.flowers.filter(f => f.isBlooming && f.pollen > 0);
+        
+        if (flowers.length > 0) {
+          const flower = flowers[Math.floor(Math.random() * flowers.length)];
+          bee.target = { x: flower.x, y: flower.y };
+          bee.status = 'flying-to-flower';
+          this.calculateBeeDirection(bee);
+          return;
+        }
+      }
+
+      if (Math.random() < 0.3) {
+        const newPatches = this.patches.filter(p => !p.discoveredByBee);
+        if (newPatches.length > 0) {
+          const patch = newPatches[0];
+          const flower = patch.flowers.find(f => f.isBlooming && f.pollen > 0);
+          
+          if (flower) {
+            bee.target = { x: flower.x, y: flower.y };
+            bee.status = 'flying-to-flower';
+            this.calculateBeeDirection(bee);
+            bee.isScout = true;
+            return;
+          }
+        }
+      }
+
+      const allFlowers = this.flowers.filter(f => f.isBlooming && f.pollen > 0);
+      if (allFlowers.length > 0) {
+        const flower = allFlowers[Math.floor(Math.random() * allFlowers.length)];
         bee.target = { x: flower.x, y: flower.y };
         bee.status = 'flying-to-flower';
         this.calculateBeeDirection(bee);
       }
+
+      if (allFlowers.length > 0) {
+    const flower = allFlowers[Math.floor(Math.random() * allFlowers.length)];
+    bee.target = { x: flower.x, y: flower.y };
+    bee.currentFlower = flower; // Устанавливаем текущий цветок
+    bee.status = 'flying-to-flower';
+    this.calculateBeeDirection(bee);
+  }
     },
 
     moveBee(bee, deltaTime) {
@@ -640,19 +613,26 @@ if (this.bear) {
       }
     },
 
-    collectPollen(bee, deltaTime) {
-      if (!bee.currentFlower) {
-        bee.currentFlower = this.findFlowerAtPosition(bee.position);
-      }
-      
-      if (!bee.currentFlower || !bee.currentFlower.isBlooming) {
-        this.returnBeeToHive(bee);
-        return;
-      }
-      
-      const collected = bee.currentFlower.collectPollen(bee.collectionSpeed * deltaTime);
-      bee.pollen += collected;
-    },
+  collectPollen(bee, deltaTime) {
+    if (!bee.currentFlower) {
+      this.returnBeeToHive(bee);
+      return;
+    }
+
+    const collected = bee.currentFlower.collectPollen(bee.collectionSpeed * deltaTime);
+    bee.pollen += collected;
+
+    if (bee.pollen >= bee.capacity) {
+      this.returnBeeToHive(bee);
+      return;
+    }
+
+    if (collected > 0 && bee.isScout && bee.currentFlower?.patchId) {
+      // Только разведчики отмечают полянку
+      const patch = this.patches.find(p => p.id === bee.currentFlower.patchId);
+      if (patch) patch.discovered = true;
+    }
+  },
 
     depositPollen(bee) {
       if (bee.pollen > 0) {
@@ -670,35 +650,116 @@ if (this.bear) {
       }
     },
 
+
+    updateBeeBehavior(deltaTime) {
+    this.bees.forEach(bee => {
+      const result = bee.update(deltaTime, {
+        flowers: this.flowers,
+        hive: this.hive,
+        bears: this.bear ? [this.bear] : []
+      });
+
+      if (result === 'die') {
+        this.removeBee(bee);
+      }
+
+      // Обработка "танца" разведчика
+      if (bee.isScout && bee.status === 'returning' && bee.reachedTarget()) {
+        this.handleScoutDance(bee);
+      }
+    });
+  },
+
+  handleScoutDance(scoutBee) {
+    if (!scoutBee.currentFlower?.patchId) return;
+
+    // Помечаем пчелу как танцующую
+    scoutBee.isDancing = true;
+    scoutBee.danceStartTime = Date.now();
+    scoutBee.danceDuration = 3000 + Math.random() * 2000; // 3-5 секунд танца
+
+    // Через 1 секунду начинаем информировать других пчёл
+    setTimeout(() => {
+      if (scoutBee.isDancing) {
+        this.informOtherBees(scoutBee.currentFlower.patchId);
+      }
+    }, 1000);
+
+    // Завершаем танец через заданное время
+    setTimeout(() => {
+      scoutBee.isDancing = false;
+      scoutBee.isScout = false;
+    }, scoutBee.danceDuration);
+  },
+
+  informOtherBees(patchId) {
+    const patch = this.patches.find(p => p.id === patchId);
+    if (!patch) return;
+
+    // Выбираем пчёл в улье (первые 30% или минимум 1 пчелу)
+    const hiveBees = this.bees.filter(b => 
+      b.status === 'in-hive' && 
+      !b.isNotifiedAboutPatch
+    );
+    
+    const beesToInform = Math.max(1, Math.floor(hiveBees.length * 0.3));
+    
+    hiveBees.slice(0, beesToInform).forEach((bee, index) => {
+      setTimeout(() => {
+        const flower = patch.flowers.find(f => f.isBlooming && f.pollen > 0);
+        if (flower) {
+          bee.isNotifiedAboutPatch = true;
+          bee.status = 'flying-to-flower';
+          bee.target = flower;
+          bee.currentFlower = flower;
+          bee.calculateDirection();
+          
+          // Сбрасываем уведомление через 15-30 секунд
+          setTimeout(() => {
+            bee.isNotifiedAboutPatch = false;
+          }, 15000 + Math.random() * 15000);
+        }
+      }, index * 300); // Задержка между вылетом пчёл
+    });
+  },
+
     render() {
       this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
       this.ctx.fillStyle = '#a8e6cf';
       this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
-      
+
+      this.patches.forEach(patch => {
+        if (patch.isDead) {
+          this.ctx.fillStyle = 'rgba(255, 0, 0, 0.5)';
+        } else {
+          this.ctx.fillStyle = 'rgba(0, 128, 0, 0.2)';
+        }
+        this.ctx.beginPath();
+        this.ctx.arc(patch.x, patch.y, 50, 0, Math.PI * 2);
+        this.ctx.fill();
+      });
+
       this.flowers.forEach(flower => {
         const f = flower.getVisualData();
-        
         this.ctx.strokeStyle = '#2E7D32';
         this.ctx.lineWidth = 2;
         this.ctx.beginPath();
         this.ctx.moveTo(f.x, f.y);
         this.ctx.lineTo(f.x, f.y + 40);
         this.ctx.stroke();
-        
         this.ctx.save();
         this.ctx.globalAlpha = f.opacity;
         this.ctx.fillStyle = f.color;
         this.ctx.beginPath();
         this.ctx.arc(f.x, f.y, f.size, 0, Math.PI * 2);
         this.ctx.fill();
-        
         this.ctx.fillStyle = '#FFEB3B';
         this.ctx.beginPath();
         this.ctx.arc(f.x, f.y, f.size / 2, 0, Math.PI * 2);
         this.ctx.fill();
         this.ctx.restore();
       });
-      
+
       this.ctx.fillStyle = this.isHiveFull ? '#d9534f' : '#8B4513';
       this.ctx.beginPath();
       this.ctx.arc(this.hive.position.x, this.hive.position.y, 40, 0, Math.PI * 2);
@@ -710,107 +771,90 @@ if (this.bear) {
       this.ctx.fill();
       
       this.bees.forEach(bee => {
-  // Устанавливаем цвет в зависимости от статуса
-  if (bee.status === 'attacking-bear') {
-    this.ctx.fillStyle = '#FF4500'; // Красный для атакующих
-  } else {
-    this.ctx.fillStyle = '#FFD700'; // Жёлтый для обычных
-  }
-  
-  this.ctx.beginPath();
-  
-  if (bee.direction) {
-    const angle = Math.atan2(bee.direction.y, bee.direction.x);
-    this.ctx.ellipse(
-      bee.position.x, 
-      bee.position.y, 
-      10, 
-      5, 
-      angle, 
-      0, 
-      Math.PI * 2
-    );
-  } else {
-    this.ctx.arc(bee.position.x, bee.position.y, 10, 0, Math.PI * 2);
-  }
-  
-  this.ctx.fill();
-  
-  // Отрисовка деталей пчелы
-  this.ctx.fillStyle = '#000';
-  this.ctx.fillRect(bee.position.x - 8, bee.position.y - 5, 4, 10);
-  this.ctx.fillRect(bee.position.x - 2, bee.position.y - 5, 4, 10);
-  this.ctx.fillRect(bee.position.x + 4, bee.position.y - 5, 4, 10);
-  
-  this.ctx.fillStyle = 'rgba(240, 240, 240, 0.7)';
-  this.ctx.beginPath();
-  this.ctx.ellipse(bee.position.x - 3, bee.position.y - 8, 3, 6, 0, 0, Math.PI * 2);
-  this.ctx.fill();
-  this.ctx.beginPath();
-  this.ctx.ellipse(bee.position.x - 3, bee.position.y + 8, 3, 6, 0, 0, Math.PI * 2);
-  this.ctx.fill();
-});
+        if (bee.status === 'attacking-bear') {
+          this.ctx.fillStyle = '#FF4500';
+        } else {
+          this.ctx.fillStyle = '#FFD700';
+        }
+        
+        this.ctx.beginPath();
+        
+        if (bee.direction) {
+          const angle = Math.atan2(bee.direction.y, bee.direction.x);
+          this.ctx.ellipse(
+            bee.position.x, 
+            bee.position.y, 
+            10, 
+            5, 
+            angle, 
+            0, 
+            Math.PI * 2
+          );
+        } else {
+          this.ctx.arc(bee.position.x, bee.position.y, 10, 0, Math.PI * 2);
+        }
+        
+        this.ctx.fill();
+        
+        this.ctx.fillStyle = '#000';
+        this.ctx.fillRect(bee.position.x - 8, bee.position.y - 5, 4, 10);
+        this.ctx.fillRect(bee.position.x - 2, bee.position.y - 5, 4, 10);
+        this.ctx.fillRect(bee.position.x + 4, bee.position.y - 5, 4, 10);
+        
+        this.ctx.fillStyle = 'rgba(240, 240, 240, 0.7)';
+        this.ctx.beginPath();
+        this.ctx.ellipse(bee.position.x - 3, bee.position.y - 8, 3, 6, 0, 0, Math.PI * 2);
+        this.ctx.fill();
+        this.ctx.beginPath();
+        this.ctx.ellipse(bee.position.x - 3, bee.position.y + 8, 3, 6, 0, 0, Math.PI * 2);
+        this.ctx.fill();
+      });
       
       if (this.bear) {
+        this.ctx.beginPath();
+        this.ctx.arc(
+          this.bear.position.x,
+          this.bear.position.y,
+          this.bear.detectionRadius,
+          0,
+          Math.PI * 2
+        );
+        this.ctx.fillStyle = 'rgba(255, 0, 0, 0.2)';
+        this.ctx.fill();
+        this.ctx.strokeStyle = 'rgba(255, 0, 0, 0.6)';
+        this.ctx.lineWidth = 2;
+        this.ctx.stroke();
 
-        // Радиус обнаружения медведя
-const detectionRadius = this.bear.detectionRadius;
-
-// Прозрачный круг с полупрозрачной заливкой
-this.ctx.beginPath();
-this.ctx.arc(
-  this.bear.position.x,
-  this.bear.position.y,
-  detectionRadius,
-  0,
-  Math.PI * 2
-);
-this.ctx.fillStyle = 'rgba(255, 0, 0, 0.2)';
-this.ctx.fill();
-
-// Обводка круга
-this.ctx.strokeStyle = 'rgba(255, 0, 0, 0.6)';
-this.ctx.lineWidth = 2;
-this.ctx.stroke();
-
-        // Тело медведя
         this.ctx.fillStyle = '#8B4513';
         this.ctx.beginPath();
         this.ctx.arc(this.bear.position.x, this.bear.position.y, 25, 0, Math.PI * 2);
         this.ctx.fill();
         
-        // Голова
         this.ctx.beginPath();
         this.ctx.arc(this.bear.position.x - 15, this.bear.position.y - 15, 15, 0, Math.PI * 2);
         this.ctx.fill();
         
-        // Уши
         this.ctx.beginPath();
         this.ctx.arc(this.bear.position.x - 25, this.bear.position.y - 25, 8, 0, Math.PI * 2);
         this.ctx.fill();
         
-        // Глаза
         this.ctx.fillStyle = '#000';
         this.ctx.beginPath();
         this.ctx.arc(this.bear.position.x - 20, this.bear.position.y - 15, 3, 0, Math.PI * 2);
         this.ctx.fill();
         
-        // Шкала здоровья
         const healthWidth = 60;
         const healthHeight = 8;
         const healthX = this.bear.position.x - healthWidth / 2;
         const healthY = this.bear.position.y - 50;
         
-        // Фон шкалы
         this.ctx.fillStyle = '#555';
         this.ctx.fillRect(healthX, healthY, healthWidth, healthHeight);
         
-        // Здоровье
         const healthPercent = this.bear.health / this.bear.maxHealth;
         this.ctx.fillStyle = healthPercent > 0.5 ? '#4CAF50' : healthPercent > 0.25 ? '#FFC107' : '#F44336';
         this.ctx.fillRect(healthX, healthY, healthWidth * healthPercent, healthHeight);
         
-        // Обводка шкалы
         this.ctx.strokeStyle = '#000';
         this.ctx.lineWidth = 1;
         this.ctx.strokeRect(healthX, healthY, healthWidth, healthHeight);
@@ -827,7 +871,6 @@ this.ctx.stroke();
   }
 };
 </script>
-
 <style>
 /* Основные стили */
 * {
