@@ -1,5 +1,5 @@
 export default class Bee {
-  constructor(hiveId) {
+  constructor(hiveId, type = 'worker') {
     // Идентификаторы и принадлежность
     this.id = `bee-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     this.hiveId = hiveId;
@@ -18,25 +18,98 @@ export default class Bee {
     this.pollen = 0;
     this.capacity = 10 + Math.floor(Math.random() * 5); // Вместимость 10-14
     this.collectionSpeed = 0.02;
-    
+    this.lastSearchTime = 0; // Время последнего поиска цветов
+    this.returnTime = 0; // Время возвращения в улей
+this.searchTimeout = null; // Таймер для нового поиска
     // Боевые параметры
     this.health = 10;
     this.attackPower = 0.5;
     
     // Система разведки
     this.currentFlower = null;
-    this.isScout = Math.random() < 0.3; // 30% шанс быть разведчиком
+   
     this.isNotifiedAboutPatch = false;
     this.lastPatchNotificationTime = 0;
     this.flowerSearchCooldown = 0;
     
+    
+     this.type = type; // 'worker' или 'scout'
+    this.knownFlowerPatches = []; // Массив для хранения информации о полянках
+    this.isDancing = false;       // Состояние "танца" в улье
+    this.danceTargetPatch = null; // Полянка, о которой танцует
+    this.isScout = false
+    this.isActiveScout = false;
+    this.isInformed = false; // Получила ли пчела информацию о полянке
+    this.informedUntil = 0; // До какого времени помнит о полянке
+     this.scoutMemory = []; // Память о найденных полянках
+    this.currentActionTimeout = null; // Таймер текущего действия
     // Время жизни
     this.birthTime = Date.now();
     this.lifespan = 60000 + Math.random() * 30000; // 60-90 секунд
+   this.danceDuration = 3000; // 3 секунды танца
+    this.danceStartTime = 0;
+    this.informedBees = []; // Пчёлы, которых мы уже уведомили
+     this.isBusy = false;
+  this.lastCheckTime = 0;
+  this.currentPatchId = null;
+    this.lastActionTime = Date.now();
+  this.returnTimeout = null;
+  this.returnTimeout = null;
+  this.flowerTimeout = null;
   }
+
+  // Метод для начала танца
+  startDance(patchId) {
+    this.isDancing = true;
+    this.danceStartTime = Date.now();
+    this.danceTargetPatch = patchId;
+    this.status = 'dancing';
+  }
+
+  // Метод для обновления танца
+  updateDance(hive) {
+    if (!this.isDancing) return;
+
+    // Если танец закончился
+    if (Date.now() - this.danceStartTime > this.danceDuration) {
+      this.isDancing = false;
+      this.status = 'idle';
+      this.danceTargetPatch = null;
+      this.informedBees = [];
+      return;
+    }
+
+    // Уведомляем случайных пчёл в улье (1 каждые 500мс)
+    if (Date.now() - this.danceStartTime > this.informedBees.length * 500) {
+      const uninformedBees = hive.bees.filter(bee => 
+        bee.status === 'in-hive' && 
+        !bee.isScout && 
+        !this.informedBees.includes(bee.id)
+      );
+
+      if (uninformedBees.length > 0) {
+        const randomBee = uninformedBees[Math.floor(Math.random() * uninformedBees.length)];
+        this.informBee(randomBee, this.danceTargetPatch);
+        this.informedBees.push(randomBee.id);
+      }
+    }
+  }
+
+  // Метод для уведомления другой пчелы
+  informBee(bee, patchId) {
+    bee.isInformed = true;
+    bee.informedPatchId = patchId;
+    bee.informedUntil = Date.now() + 30000; // Помнит 30 секунд
+  }
+
 
   // Основной метод обновления
   update(deltaTime, gameState) {
+    if (this.isScout && this.target.patch && !this.target.patch.discovered) {
+  this.target.patch.discovered = true;
+  this.target.patch.discoveredBy = this.id;
+}
+
     // Проверка времени жизни
     if (Date.now() - this.birthTime > this.lifespan) {
       return 'die'; // Сигнал для удаления пчелы
@@ -191,23 +264,24 @@ export default class Bee {
   // ===== МЕТОДЫ АТАКИ =====
 
   handleAttack(deltaTime, bears, hive) {
-    if (!this.attackMode) {
-      const bear = this.checkForBears(hive, bears);
-      if (bear) {
-        this.startAttack(bear);
-        return true;
-      }
-      return false;
+  if (!this.attackMode) {
+    const bear = this.checkForBears(hive, bears);
+    if (bear) {
+      this.startAttack(bear);
+      return true;
     }
-
-    if (!this.target || this.target.health <= 0) {
-      this.endAttack(hive);
-      return false;
-    }
-
-    this.attack(deltaTime);
-    return true;
+    return false;
   }
+
+  // Если медведь мёртв или ушёл - прекращаем атаку
+  if (!this.target || this.target.state === 'dead' || this.target.state === 'gone') {
+    this.endAttack(hive);
+    return false;
+  }
+
+  this.attack(deltaTime);
+  return true;
+}
 
   startAttack(bear) {
     this.attackMode = true;
@@ -307,4 +381,32 @@ export default class Bee {
       this.collectionSpeed = params.collectionSpeed;
     }
   }
+  // Метод для добавления информации о полянке
+  addFlowerPatchInfo(patchId, flowerCount) {
+    const existingPatch = this.knownFlowerPatches.find(p => p.id === patchId);
+    if (!existingPatch) {
+      this.knownFlowerPatches.push({
+        id: patchId,
+        flowerCount,
+        lastVisited: Date.now()
+      });
+      // Сортируем по количеству цветов (чтобы летели к самым богатым)
+      this.knownFlowerPatches.sort((a, b) => b.flowerCount - a.flowerCount);
+    }
+  }
+
+   spawnNewBee(totalBees) {
+    const bee = new Bee(this.id);
+    
+    // Рассчитываем процент разведчиков (10-30%)
+    const scoutRatio = 0.1 + (Math.random() * 0.2);
+    const currentScouts = totalBees.filter(b => b.isScout).length;
+    const targetScouts = Math.floor(totalBees.length * scoutRatio);
+    
+    // Если разведчиков меньше нужного количества
+    bee.isScout = currentScouts < targetScouts;
+    
+    return bee;
+  }
+
 }

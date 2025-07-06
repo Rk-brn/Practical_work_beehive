@@ -10,9 +10,13 @@ export default class FlowerPatch {
     this.discoveredBy = null; // ID пчелы-разведчика
     this.patchLifetime = 45000 + Math.random() * 30000; // 45-75 секунд
     this.flowers = [];
+    this.isHot = false; // "Горячая" полянка - приоритетная
+    this.hotUntil = 0; // До какого времени "горячая"
     this.typeDistribution = this.calculateTypeDistribution(count);
-    
-    this.generateFlowers(count);
+    this.generateFlowers(count);this.isDying = false; // Добавляем флаг "умирает"
+    this.isDead = false;
+    this.deathTimer = null; 
+    this.patchLifetime = 60000 + Math.random() * 60000; // 1-2 минуты
   }
 
   calculateTypeDistribution(count) {
@@ -40,7 +44,69 @@ export default class FlowerPatch {
     }
   }
 
+
+// FlowerPatch.js
+shouldDie() {
+  const elapsed = Date.now() - this.birthTime;
+  const timeExpired = elapsed > this.patchLifetime;
+  
+  console.log(`Patch ${this.id} lifetime: ${elapsed/1000}s/${this.patchLifetime/1000}s`);
+  
+  const bloomingCount = this.flowers.filter(f => 
+    f.isBlooming && f.state === 'blooming'
+  ).length;
+  
+  return timeExpired || bloomingCount < 2;
+}
+
+ startDying() {
+  if (this.isDying) return;
+  
+  this.isDying = true;
+  
+  // Принудительно переводим все цветы в режим увядания
+  this.flowers.forEach(f => {
+    if (f.state !== 'withering' && f.state !== 'recovering') {
+      f.startWithering();
+    }
+    // Ускоряем процесс увядания
+    f.witherDuration = 1000; // Фиксированное быстрое увядание
+  });
+  
+  // Гарантированное удаление через 3 секунды
+  setTimeout(() => {
+    this.isDead = true;
+    
+    // Принудительно завершаем состояние всех цветов
+    this.flowers.forEach(f => {
+      f.state = 'recovering';
+      f.opacity = 0;
+    });
+  }, 3000);
+}
+
+
   update(deltaTime) {
+    // Если полянка уже мертва, ничего не делаем
+    if (this.isDead) return;
+    
+    // Если полянка должна умереть, но еще не начала - начинаем процесс
+    if (!this.isDying && this.shouldDie()) {
+      this.startDying();
+    }
+    
+    // Обновляем все цветы (даже если умирают)
+    this.flowers.forEach(flower => flower.update());
+    
+    // Ваш код для пометки как мертвой после полного увядания
+    if (this.isDying && !this.isDead) {
+      const allRecovering = this.flowers.every(f => f.state === 'recovering');
+      if (allRecovering) {
+        this.isDead = true;
+        if (this.deathTimer) clearTimeout(this.deathTimer);
+      }
+    }
+  
     const now = Date.now();
     
     // Обновляем все цветы
@@ -60,6 +126,8 @@ export default class FlowerPatch {
       }
     }
   }
+
+
 
   markAsDiscovered(beeId) {
     this.discovered = true;
@@ -87,4 +155,24 @@ export default class FlowerPatch {
       lifetimeLeft: this.patchLifetime - (Date.now() - this.birthTime)
     };
   }
+ hasAvailableFlowers() {
+    return this.flowers.some(f => f.isBlooming && f.pollen > 0);
+  }
+
+  getRandomAvailableFlower() {
+    const available = this.flowers.filter(f => f.isBlooming && f.pollen > 0);
+    if (available.length === 0) return null;
+    return available[Math.floor(Math.random() * available.length)];
+  }
+
+  removeFlowersFromGlobal(globalFlowersArray) {
+  // Собираем ID наших цветов
+  const ourFlowerIds = this.flowers.map(f => f.id);
+  
+  // Удаляем наши цветы из глобального массива
+  return globalFlowersArray.filter(
+    flower => !ourFlowerIds.includes(flower.id)
+  );
+}
+
 }

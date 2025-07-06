@@ -66,10 +66,14 @@ export default class Flower {
         break;
         
       case 'recovering':
-        if (elapsed > this.recoveryTime) {
-          this.startBlooming();
-        }
-        break;
+      // Принудительное завершение восстановления
+      if (elapsed > this.recoveryTime * 2) {
+        this.startBlooming();
+      } else if (elapsed > this.recoveryTime) {
+        this.state = 'blooming'; // Насильно переводим в цветущее состояние
+        this.startBlooming();
+      }
+      break;
     }
   }
 
@@ -108,8 +112,14 @@ export default class Flower {
   }
 
   isAvailable() {
-    return this.isBlooming && this.pollen > 0 && !this.isTargeted;
+     if (this.patch?.isDying) {
+    return false;
   }
+  
+  return this.isBlooming && this.pollen > 0 && !this.isTargeted;
+  }
+
+
 
   getVisualData() {
     return {

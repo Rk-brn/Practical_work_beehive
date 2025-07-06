@@ -9,9 +9,10 @@ export default class Hive {
     this.health = 100;
     this.maxHealth = 100;
     this.defense = 1;
-    this.discoveredPatches = new Map(); // Хранит информацию о полянках
+    this.discoveredPatches = [];
     this.lastSpawnTime = Date.now();
   }
+
 
   addBee(bee) {
     if (this.bees.length >= this.capacity) return false;
@@ -119,4 +120,19 @@ export default class Hive {
       discoveredPatches: this.discoveredPatches.size
     };
   }
+addDiscoveredPatch(patch) {
+  if (!this.discoveredPatches.some(p => p.id === patch.id)) {
+    this.discoveredPatches.push({
+      id: patch.id,
+      x: patch.x,
+      y: patch.y,
+      lastUpdated: Date.now()
+    });
+    // Ограничиваем количество запомненных полянок
+    if (this.discoveredPatches.length > 5) {
+      this.discoveredPatches.shift();
+    }
+  }
+}
+
 }
