@@ -23,7 +23,7 @@ export default class Bee {
 this.searchTimeout = null; // Таймер для нового поиска
     // Боевые параметры
     this.health = 10;
-    this.attackPower = 0.5;
+    this.attackPower = 0.15;
     
     // Система разведки
     this.currentFlower = null;

@@ -16,7 +16,12 @@ export default class FlowerPatch {
     this.generateFlowers(count);this.isDying = false; // Добавляем флаг "умирает"
     this.isDead = false;
     this.deathTimer = null; 
-    this.patchLifetime = 60000 + Math.random() * 60000; // 1-2 минуты
+    this.patchLifetime = 60000 + Math.random() * 60000 * 65000; // 1-2 минуты
+    this.flowers.forEach(flower => {
+      this.bloomDuration = 10000 + Math.random() * 5000; // 10-15 секунд
+    this.witherDuration = 5000 + Math.random() * 3000; // 5-8 секунд
+    this.recoveryTime = 15000 + Math.random() * 10000; // 15-25 секунд
+        });
   }
 
   calculateTypeDistribution(count) {
@@ -43,9 +48,6 @@ export default class FlowerPatch {
       this.flowers.push(flower);
     }
   }
-
-
-// FlowerPatch.js
 shouldDie() {
   const elapsed = Date.now() - this.birthTime;
   const timeExpired = elapsed > this.patchLifetime;
@@ -98,7 +100,6 @@ shouldDie() {
     // Обновляем все цветы (даже если умирают)
     this.flowers.forEach(flower => flower.update());
     
-    // Ваш код для пометки как мертвой после полного увядания
     if (this.isDying && !this.isDead) {
       const allRecovering = this.flowers.every(f => f.state === 'recovering');
       if (allRecovering) {
@@ -109,23 +110,26 @@ shouldDie() {
   
     const now = Date.now();
     
-    // Обновляем все цветы
-    this.flowers.forEach(flower => flower.update());
+    // Обновляем цветы
+    this.flowers.forEach(flower => flower.update(deltaTime));
     
-    // Удаляем полностью увядшие цветы
-    this.flowers = this.flowers.filter(flower => 
-      flower.state !== 'recovering' || 
-      now - flower.stateTimer < flower.recoveryTime * 2
-    );
+    // Постепенное увядание полянки
+    if (Date.now() - this.birthTime > this.patchLifetime * 0.7) {
+      // После 70% времени - начинаем увядать
+      const dyingFlowers = this.flowers.filter(f => 
+        f.state === 'blooming' && Math.random() < 0.002 * deltaTime
+      );
+      
+      dyingFlowers.forEach(flower => flower.startWithering());
+    }
     
     // Обновляем статус полянки
-    if (!this.discovered && this.flowers.some(f => f.isBlooming)) {
-      const bloomingCount = this.flowers.filter(f => f.isBlooming).length;
-      if (bloomingCount <= 1) {
-        this.markAsDead();
-      }
+    const bloomingCount = this.flowers.filter(f => f.isBlooming).length;
+    if (bloomingCount === 0) {
+      this.markAsDead();
     }
   }
+  
 
 
 

@@ -6,11 +6,11 @@ export default class Bear {
       y: Math.random() * canvasHeight
     };
     this.target = null;
-    this.health = 100;
-    this.maxHealth = 100;
+    this.health = 500;
+    this.maxHealth = 500;
     this.speed = 0.1;
     this.detectionRadius = 150; // Увеличенный радиус обнаружения улья
-    this.wanderingRadius = 300;
+    this.wanderingRadius = 150;
     this.attackPower = 2;
     this.attackCooldown = 0;
     this.state = 'idle'; // 'idle', 'wandering', 'chasing', 'attacking', 'leaving', 'dead'
@@ -23,6 +23,8 @@ export default class Bear {
     this.wanderTime = 0;
     this.maxWanderTime = 3000 + Math.random() * 4000; // 3-7 секунд блуждания
      this.setBoundaries(canvasWidth, canvasHeight);
+
+      this.armor = 0.6;
   }
 
   getRandomWanderTarget() {
@@ -271,7 +273,10 @@ export default class Bear {
   }
 
   takeDamage(amount) {
-    this.health -= amount;
+   // Учет брони
+    const finalDamage = amount * (1 - this.armor);
+    this.health -= finalDamage;
+    
     if (this.health <= 0) {
       this.state = 'dead';
       return true;

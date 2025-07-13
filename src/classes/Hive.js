@@ -6,8 +6,8 @@ export default class Hive {
     this.bees = [];
     this.honey = 0;
     this.maxHoney = 100;
-    this.health = 100;
-    this.maxHealth = 100;
+    this.health = 1;
+    this.maxHealth = 1;
     this.defense = 1;
     this.discoveredPatches = [];
     this.lastSpawnTime = Date.now();
